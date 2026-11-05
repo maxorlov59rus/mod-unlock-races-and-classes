@@ -43,6 +43,7 @@ namespace
         { CLASS_ROGUE,         "Разбойник" },
         { CLASS_PRIEST,        "Жрец" },
         { CLASS_DEATH_KNIGHT,  "Рыцарь смерти" },
+        { CLASS_SHAMAN,        "Шаман" },
         { CLASS_MAGE,          "Маг" },
         { CLASS_WARLOCK,       "Чернокнижник" },
         { CLASS_DRUID,         "Друид" },
@@ -58,7 +59,7 @@ namespace
         { RACE_UNDEAD_PLAYER, "Нежить" },
         { RACE_TAUREN,        "Таурен" },
         { RACE_GNOME,         "Гном" },
-        { RACE_TROLL,         "Тролл��" },
+        { RACE_TROLL,         "Тролль" },
         { RACE_BLOODELF,      "Эльф крови" },
         { RACE_DRAENEI,       "Дреней" },
     };
@@ -152,12 +153,12 @@ void UnlockRacesClasses::LoadConfig()
     _specs[SPEC_NECROMANCER].Spells = sConfigMgr->GetIntArrayDefault("UnlockRacesClasses.Spec.Necromancer.Spells", {});
     _specs[SPEC_NECROMANCER].Auras  = sConfigMgr->GetIntArrayDefault("UnlockRacesClasses.Spec.Necromancer.Auras", {});
 
-    LOG_INFO("module", "UnlockRacesClasses: loaded (enabled: {}, npc: {}, minLevel: {}, newRaces: {})",
-        _enabled, _npcEntry, _minLevel, _newRacesEnabled);
-
     _teleportOnRaceChange = sConfigMgr->GetBoolDefault("UnlockRacesClasses.TeleportOnRaceChange", true);
     _giveStartItems = sConfigMgr->GetBoolDefault("UnlockRacesClasses.GiveStartItems", true);
     _cooldownSeconds = sConfigMgr->GetIntDefault("UnlockRacesClasses.ChangeCooldown", 0);
+
+    LOG_INFO("module", "UnlockRacesClasses: loaded (enabled: {}, npc: {}, minLevel: {}, newRaces: {}, newClasses: {}, cooldown: {}s)",
+        _enabled, _npcEntry, _minLevel, _newRacesEnabled, _newClassesEnabled, _cooldownSeconds);
 }
 
 // -------- Start locations (world DB, admin-configurable) --------
@@ -238,6 +239,11 @@ void UnlockRacesClasses::GiveStartItems(Player* player)
     if (!player)
         return;
 
+    // One-time grant per character: prevents farming start items
+    // by repeatedly switching race/class when there is no cost/cooldown.
+    if (WasGivenStartItems(player))
+        return;
+
     uint8 race = player->getRace(true);
     uint8 cls = player->getClass();
     uint32 given = 0;
@@ -253,7 +259,10 @@ void UnlockRacesClasses::GiveStartItems(Player* player)
     }
 
     if (given)
+    {
         LOG_INFO("module", "UnlockRacesClasses: gave {} start item types to {}", given, player->GetName());
+        MarkStartItemsGiven(player);
+    }
 }
 
 // -------- Change cooldown --------
@@ -286,6 +295,12 @@ void UnlockRacesClasses::StartCooldown(Player* player)
         _lastChange[player->GetGUID().GetCounter()] = std::chrono::steady_clock::now();
 }
 
+void UnlockRacesClasses::ClearCooldown(Player* player)
+{
+    if (player)
+        _lastChange.erase(player->GetGUID().GetCounter());
+}
+
 bool UnlockRacesClasses::IsClassSupportedByClient(uint8 cls)
 {
     // WotLK 3.3.5a client knows classes 1-9 and 11 natively.
@@ -298,6 +313,7 @@ bool UnlockRacesClasses::IsClassSupportedByClient(uint8 cls)
         case CLASS_ROGUE:
         case CLASS_PRIEST:
         case CLASS_DEATH_KNIGHT:
+        case CLASS_SHAMAN:
         case CLASS_MAGE:
         case CLASS_WARLOCK:
         case CLASS_DRUID:
@@ -358,6 +374,32 @@ bool UnlockRacesClasses::MeetsLevelRequirement(Player* player)
     return true;
 }
 
+bool UnlockRacesClasses::IsPlayerChangeReady(Player* player)
+{
+    if (!player)
+        return false;
+
+    if (!player->IsAlive())
+    {
+        player->SendSystemMessage("Смена возможна только в живом состоянии.");
+        return false;
+    }
+
+    if (player->IsInCombat())
+    {
+        player->SendSystemMessage("Нельзя менять расу/класс/специализацию в бою.");
+        return false;
+    }
+
+    if (player->isInFlight())
+    {
+        player->SendSystemMessage("Дождитесь окончания полёта на такси.");
+        return false;
+    }
+
+    return true;
+}
+
 bool UnlockRacesClasses::CheckAndPayCost(Player* player, UnlockChangeCost const& cost, char const* actionName)
 {
     if (!cost.ItemEntry || !cost.ItemCount)
@@ -379,7 +421,7 @@ bool UnlockRacesClasses::ApplyRaceChange(Player* player, uint8 newRace)
     if (!player || !IsCombinationAllowed(newRace, player->getClass()))
         return false;
 
-    player->SetRace(newRace);
+    player->SetByteValue(UNIT_FIELD_BYTES_0, 0, newRace);
     player->setFactionForRace(newRace);
 
     player->InitTalentForLevel();
@@ -410,7 +452,7 @@ bool UnlockRacesClasses::ApplyClassChange(Player* player, uint8 newClass)
     if (!player || !IsCombinationAllowed(player->getRace(true), newClass))
         return false;
 
-    player->SetClass(newClass);
+    player->SetByteValue(UNIT_FIELD_BYTES_0, 2, newClass);
     player->InitTalentForLevel();
     player->SaveToDB(false, false);
 
@@ -467,14 +509,41 @@ void UnlockRacesClasses::SavePlayerSpec(Player* player, uint8 specId)
     if (!player)
         return;
 
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_URC_SPEC);
-    stmt->setUInt32(0, player->GetGUID().GetCounter());
-    CharacterDatabase.Execute(stmt);
+    // Single transaction: DELETE + INSERT must be atomic, otherwise with a
+    // multi-connection async pool the DELETE may run after the INSERT and
+    // the persisted specialization would be lost.
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
-    stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_URC_SPEC);
-    stmt->setUInt32(0, player->GetGUID().GetCounter());
-    stmt->setUInt8(1, specId);
-    CharacterDatabase.Execute(stmt);
+    trans->Append("DELETE FROM mod_unlock_races_classes_specs WHERE guid = {}",
+        player->GetGUID().GetCounter());
+    trans->Append("INSERT INTO mod_unlock_races_classes_specs (guid, specId) VALUES ({}, {})",
+        player->GetGUID().GetCounter(), specId);
+
+    CharacterDatabase.CommitTransaction(trans);
+}
+
+// -------- Characters DB persistence for start items (one-time grant) --------
+
+bool UnlockRacesClasses::WasGivenStartItems(Player* player)
+{
+    if (!player)
+        return true; // fail-safe: do not grant
+
+    QueryResult result = CharacterDatabase.Query(
+        "SELECT 1 FROM mod_unlock_races_classes_start_items WHERE guid = {}",
+        player->GetGUID().GetCounter());
+
+    return result != nullptr;
+}
+
+void UnlockRacesClasses::MarkStartItemsGiven(Player* player)
+{
+    if (!player)
+        return;
+
+    CharacterDatabase.Execute(
+        "REPLACE INTO mod_unlock_races_classes_start_items (guid) VALUES ({})",
+        player->GetGUID().GetCounter());
 }
 
 uint8 UnlockRacesClasses::LoadPlayerSpec(Player* player)
@@ -540,6 +609,12 @@ public:
             if (sSpellMgr->GetSpellInfo(aura) && !player->HasAura(aura))
                 player->CastSpell(player, aura, true);
         }
+    }
+
+    // Cleanup: drop the per-player cooldown timestamp so the map doesn't grow
+    void OnLogout(Player* player) override
+    {
+        sUnlockRacesClasses->ClearCooldown(player);
     }
 };
 
@@ -652,7 +727,17 @@ public:
             uint8 newRace = static_cast<uint8>(action - GOSSIP_ACTION_RACE_MENU);
             CloseGossipMenuFor(player);
 
+            // Validate the combination before charging the cost (no refunds)
+            if (!UnlockRacesClasses::IsCombinationAllowed(newRace, currentClass))
+            {
+                player->SendSystemMessage("Эта комбинация недоступна.");
+                return true;
+            }
+
             if (!UnlockRacesClasses::MeetsLevelRequirement(player))
+                return true;
+
+            if (!UnlockRacesClasses::IsPlayerChangeReady(player))
                 return true;
 
             if (sUnlockRacesClasses->IsOnCooldown(player))
@@ -678,7 +763,17 @@ public:
             uint8 newClass = static_cast<uint8>(action - GOSSIP_ACTION_CLASS_MENU);
             CloseGossipMenuFor(player);
 
+            // Validate the combination before charging the cost (no refunds)
+            if (!UnlockRacesClasses::IsCombinationAllowed(currentRace, newClass))
+            {
+                player->SendSystemMessage("Эта комбинация недоступна.");
+                return true;
+            }
+
             if (!UnlockRacesClasses::MeetsLevelRequirement(player))
+                return true;
+
+            if (!UnlockRacesClasses::IsPlayerChangeReady(player))
                 return true;
 
             if (sUnlockRacesClasses->IsOnCooldown(player))
@@ -705,6 +800,9 @@ public:
             CloseGossipMenuFor(player);
 
             if (!UnlockRacesClasses::MeetsLevelRequirement(player))
+                return true;
+
+            if (!UnlockRacesClasses::IsPlayerChangeReady(player))
                 return true;
 
             if (sUnlockRacesClasses->IsOnCooldown(player))
@@ -743,9 +841,18 @@ public:
             { "class", SEC_ADMINISTRATOR, false, &HandleClassCommand, "" },
         };
 
+        static std::vector<ChatCommand> urcuiCommandTable =
+        {
+            { "status", SEC_PLAYER, false, &HandleUiStatusCommand, "" },
+            { "race",   SEC_PLAYER, false, &HandleUiRaceCommand, "" },
+            { "class",  SEC_PLAYER, false, &HandleUiClassCommand, "" },
+            { "spec",   SEC_PLAYER, false, &HandleUiSpecCommand, "" },
+        };
+
         static std::vector<ChatCommand> commandTable =
         {
-            { "urc", SEC_ADMINISTRATOR, false, nullptr, "", urcCommandTable },
+            { "urc",  SEC_ADMINISTRATOR, false, nullptr, "", urcCommandTable },
+            { "urcui", SEC_PLAYER,      false, nullptr, "", urcuiCommandTable },
         };
 
         return commandTable;

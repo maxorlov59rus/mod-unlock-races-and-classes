@@ -95,9 +95,16 @@ public:
     static bool MeetsLevelRequirement(Player* player);
     static bool CheckAndPayCost(Player* player, UnlockChangeCost const& cost, char const* actionName);
 
+    // True when the player is in a state safe for a change (not in combat, alive, not on taxi)
+    static bool IsPlayerChangeReady(Player* player);
+
     // Character DB persistence for specializations
     static void SavePlayerSpec(Player* player, uint8 specId);
     static uint8 LoadPlayerSpec(Player* player);
+
+    // Character DB persistence for start items (one-time grant per character)
+    static bool WasGivenStartItems(Player* player);
+    static void MarkStartItemsGiven(Player* player);
 
     // Start locations: teleport after race change (custom start zones for new races)
     static void LoadStartLocations();
@@ -110,6 +117,7 @@ public:
     // Change cooldown (seconds; persisted via player's in-memory cooldown map)
     static bool IsOnCooldown(Player* player);
     static void StartCooldown(Player* player);
+    static void ClearCooldown(Player* player);
     static uint32 GetCooldownSeconds() { return _cooldownSeconds; }
 
     uint32 GetNpcEntry() const { return _npcEntry; }

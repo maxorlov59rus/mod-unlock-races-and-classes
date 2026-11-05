@@ -16,9 +16,12 @@
 | БД | Таблица | Назначение |
 |---|---|---|
 | `world` | `creature_template`, `creature` | NPC-мастер и его спавны в 8 столицах (`data/sql/db-world/unlock-races-classes.sql`) |
+| `world` | `mod_urc_start_locations` | Стартовые локации после смены расы (`data/sql/db-world/unlock-races-classes-start-locations.sql`) |
+| `world` | `mod_urc_start_items` | Стартовые предметы после смены (`data/sql/db-world/unlock-races-classes-start-items.sql`) |
 | `characters` | `mod_unlock_races_classes_specs` | Персистентность выбранной специализации (переживает релог) (`data/sql/characters/unlock-races-classes.sql`) |
+| `characters` | `mod_unlock_races_classes_start_items` | Отметка однократной выдачи стартовых предметов (`data/sql/characters/unlock-races-classes-start-items.sql`) |
 
-**Важно:** примените оба SQL-файла в соответствующие базы. Если таблица специализаций в characters-БД не создана, спеки будут сбрасываться при каждом входе.
+**Важно:** примените все SQL-файлы в соответствующие базы. Если таблица специализаций в characters-БД не создана, спеки будут сбрасываться при каждом входе. Если не создана таблица `mod_unlock_races_classes_start_items`, выдача стартовых предметов будет блокироваться (fail-safe).
 
 ## 3. Клиент (3.3.5a)
 
@@ -48,8 +51,8 @@
 ## Проверка совместимости (чек-лист)
 
 - [ ] `Expansion = 2` в `worldserver.conf`
-- [ ] Применён `data/sql/db-world/unlock-races-classes.sql` (world DB)
-- [ ] Применён `data/sql/characters/unlock-races-classes.sql` (characters DB)
+- [ ] Применены SQL из `data/sql/db-world/` (world DB)
+- [ ] Применены SQL из `data/sql/characters/` (characters DB)
 - [ ] Клиент 3.3.5a без патчей: смена расы (10 классических рас) и класса (1–9, 11) работает
 - [ ] Специализации: ауры восстанавливаются после релога
 - [ ] (опционально) Клиент с патчем `patch-urc-4.MPQ` + `EnableNewRaces = 1`: Гоблин/Ворген/Пандарен работают
