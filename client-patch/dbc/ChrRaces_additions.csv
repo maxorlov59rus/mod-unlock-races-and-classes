@@ -1,0 +1,25 @@
+# ChrRaces.dbc additions for 3.3.5a client
+# Format: one row per race. Merge these rows into your patched ChrRaces.dbc
+# (use WDBX Editor or DBCUtil).
+#
+# Columns (3.3.5a ChrRaces.dbc): ID, Flags, FactionID, ExplorationSoundID,
+# MaleDisplayID, FemaleDisplayID, ClientPrefix, BaseLanguage, CreatureType,
+# ResSicknessSpellID, SplashSoundID, ClientFileString, PopupStringID_LANG,
+# ReleaseStringID_LANG, BarbershopResultID_LANG, RequirementStringID_LANG,
+# TeamID, TeamText, CinematicSequenceID, Alliance_ExpansionRequired,
+# Horde_ExpansionRequired, ... + localized name strings
+#
+# DisplayIDs below are the ORIGINAL Cata/MoP ones. For a pure 3.3.5a client
+# you MUST provide the M2 models via your own MPQ (see client-patch/README.md).
+# Alternatively remap MaleDisplayID/FemaleDisplayID to any existing 3.3.5a
+# model to test logic before porting real models.
+
+# Goblin (race 9) - Horde
+9,0,1,0,20582,20583,"Goblin",1,7,15007,0,"Goblin",0,0,0,0,1,"Horde",0,3,3,,,,"Гоблин"
+
+# Worgen (race 22) - Alliance
+22,0,1,0,29610,29611,"Worgen",1,7,15007,0,"Worgen",0,0,0,0,0,"Alliance",0,4,4,,,,"Ворген"
+
+# Pandaren (race 24 Alliance / 25 Horde, 26 neutral unused) - MoP+
+24,0,1,0,49543,49544,"Pandaren",1,7,15007,0,"Pandaren",0,0,0,0,0,"Alliance",0,5,5,,,,"Пандарен"
+25,0,1,0,49543,49544,"Pandaren",1,7,15007,0,"Pandaren",0,0,0,0,1,"Horde",0,5,5,,,,"Пандарен"

@@ -1,0 +1,44 @@
+# CharBaseInfo.dbc additions for 3.3.5a client
+# Format: ID, ClassID, RaceID - each row unlocks one race/class combination
+# in the CLIENT character creation screen.
+#
+# Race ids: Goblin 9, Worgen 22, Pandaren-Alliance 24, Pandaren-Horde 25
+# Class ids: Warrior 1, Paladin 2, Hunter 3, Rogue 4, Priest 5, DeathKnight 6,
+#            Mage 8, Warlock 9, Druid 11
+#
+# Goblin - all classes except Paladin, Druid (visual limitation handled server-side too)
+1,1,9
+2,3,9
+3,4,9
+4,5,9
+5,6,9
+6,8,9
+7,9,9
+
+# Worgen - all classes except Paladin, Shaman (visual limitation handled server-side too)
+8,1,22
+9,3,22
+10,4,22
+11,5,22
+12,6,22
+13,8,22
+14,9,22
+15,11,22
+
+# Pandaren (Alliance 24) - all classes except Death Knight visuals, Druid, DH
+16,1,24
+17,2,24
+18,3,24
+19,4,24
+20,5,24
+21,8,24
+22,9,24
+
+# Pandaren (Horde 25) - all classes except Death Knight visuals, Druid, DH
+23,1,25
+24,2,25
+25,3,25
+26,4,25
+27,5,25
+28,8,25
+29,9,25

@@ -1,0 +1,106 @@
+########################################
+#    UnlockRacesClasses module config  #
+########################################
+
+[worldserver]
+
+#
+#    UnlockRacesClasses.Enable
+#        Description: Enable or disable the module.
+#        Default:     1 - (enabled)
+#                     0 - (disabled)
+#
+
+UnlockRacesClasses.Enable = 1
+
+#
+#    UnlockRacesClasses.NpcEntry
+#        Description: Creature entry of the race/class/spec change master NPC.
+#        Default:     95000
+#
+
+UnlockRacesClasses.NpcEntry = 95000
+
+#
+#    UnlockRacesClasses.MinLevel
+#        Description: Minimum character level for any change (race/class/spec).
+#        Default:     10 - (0 = no requirement)
+#
+
+UnlockRacesClasses.MinLevel = 10
+
+#
+#    UnlockRacesClasses.EnableNewRaces
+#        Description: Offer Cata+/MoP races (Goblin, Worgen, Pandaren) in the NPC menu.
+#                     Requires the client-side patches described in client-patch/README.md
+#                     (CharBaseInfo.dbc, ChrRaces.dbc, models). Without patches clients crash.
+#        Default:     0 - (disabled)
+#                     1 - (enabled, only with client patches applied)
+#
+
+UnlockRacesClasses.EnableNewRaces = 0
+
+#
+#    UnlockRacesClasses.TeleportOnRaceChange
+#        Description: Teleport the player to the start location of the new race
+#                     (world DB table mod_urc_start_locations) after a race change.
+#        Default:     1 - (enabled)
+#                     0 - (disabled)
+#
+
+UnlockRacesClasses.TeleportOnRaceChange = 1
+
+#
+#    UnlockRacesClasses.GiveStartItems
+#        Description: Give start items (world DB table mod_urc_start_items)
+#                     after a race/class change.
+#        Default:     1 - (enabled)
+#                     0 - (disabled)
+#
+
+UnlockRacesClasses.GiveStartItems = 1
+
+#
+#    UnlockRacesClasses.ChangeCooldown
+#        Description: Cooldown in seconds between any changes (race/class/spec).
+#                     Applies to NPC changes only; admin .urc commands bypass it.
+#        Default:     0 - (no cooldown)
+#
+
+UnlockRacesClasses.ChangeCooldown = 0
+
+#
+#    Race change cost (item-based). ItemEntry = 0 means free.
+#
+
+UnlockRacesClasses.RaceChange.ItemEntry = 0
+UnlockRacesClasses.RaceChange.ItemCount = 0
+
+#
+#    Class change cost (item-based). ItemEntry = 0 means free.
+#
+
+UnlockRacesClasses.ClassChange.ItemEntry = 0
+UnlockRacesClasses.ClassChange.ItemCount = 0
+
+#
+#    Specialization change cost (item-based). ItemEntry = 0 means free.
+#
+
+UnlockRacesClasses.SpecChange.ItemEntry = 0
+UnlockRacesClasses.SpecChange.ItemCount = 0
+
+#
+#    Custom specializations: spells are learned permanently,
+#    auras are cast and re-applied on every login.
+#    Lists are comma-separated spell/aura ids.
+#
+#    Blademaster example: Windfury-style attacks, 怒 speed buffs etc.
+#    Necromancer example: shadow/frost damage, undead summons.
+#
+
+UnlockRacesClasses.Spec.Blademaster.Spells = 33736
+UnlockRacesClasses.Spec.Blademaster.Auras = 33736
+
+UnlockRacesClasses.Spec.Necromancer.Spells = 46584
+UnlockRacesClasses.Spec.Necromancer.Auras = 18879
