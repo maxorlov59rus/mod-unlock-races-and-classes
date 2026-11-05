@@ -9,6 +9,8 @@
  */
 
 #include "UnlockRacesClasses.h"
+#include "Chat.h"
+#include "CommandScript.h"
 #include "Config.h"
 #include "Creature.h"
 #include "DatabaseEnv.h"
@@ -25,7 +27,10 @@
 #include "SpellMgr.h"
 #include "WorldSession.h"
 #include <algorithm>
+#include <sstream>
 #include <unordered_map>
+
+using namespace Acore::ChatCommands;
 
 namespace
 {
@@ -86,6 +91,38 @@ namespace
         { URC_CLASS_NECROMANCER, "Некромант (Necromancer)" },
     };
 
+    // Parses a comma-separated list of spell/aura ids from config.
+    // Replaces the removed ConfigMgr::GetIntArrayDefault (master uses GetOption<T> only).
+    std::vector<uint32> ParseUIntList(std::string const& value)
+    {
+        std::vector<uint32> out;
+        std::istringstream stream(value);
+        std::string token;
+
+        while (std::getline(stream, token, ','))
+        {
+            // Trim whitespace around the token
+            auto first = token.find_first_not_of(" 	\r\n");
+            auto last = token.find_last_not_of(" 	\r\n");
+            if (first == std::string::npos)
+                continue;
+            token = token.substr(first, last - first + 1);
+
+            try
+            {
+                uint32 id = static_cast<uint32>(std::stoul(token));
+                if (id)
+                    out.push_back(id);
+            }
+            catch (std::exception const&)
+            {
+                // Skip malformed entries silently
+            }
+        }
+
+        return out;
+    }
+
     bool IsAllianceRace(uint8 race)
     {
         switch (race)
@@ -135,27 +172,27 @@ namespace
 
 void UnlockRacesClasses::LoadConfig()
 {
-    _enabled  = sConfigMgr->GetBoolDefault("UnlockRacesClasses.Enable", true);
-    _npcEntry = sConfigMgr->GetIntDefault("UnlockRacesClasses.NpcEntry", 95000);
-    _minLevel = sConfigMgr->GetIntDefault("UnlockRacesClasses.MinLevel", 10);
-    _newRacesEnabled = sConfigMgr->GetBoolDefault("UnlockRacesClasses.EnableNewRaces", false);
-    _newClassesEnabled = sConfigMgr->GetBoolDefault("UnlockRacesClasses.EnableNewClasses", false);
+    _enabled  = sConfigMgr->GetOption<bool>("UnlockRacesClasses.Enable", true);
+    _npcEntry = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.NpcEntry", 95000);
+    _minLevel = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.MinLevel", 10);
+    _newRacesEnabled = sConfigMgr->GetOption<bool>("UnlockRacesClasses.EnableNewRaces", false);
+    _newClassesEnabled = sConfigMgr->GetOption<bool>("UnlockRacesClasses.EnableNewClasses", false);
 
-    _raceChangeCost.ItemEntry = sConfigMgr->GetIntDefault("UnlockRacesClasses.RaceChange.ItemEntry", 0);
-    _raceChangeCost.ItemCount = sConfigMgr->GetIntDefault("UnlockRacesClasses.RaceChange.ItemCount", 0);
-    _classChangeCost.ItemEntry = sConfigMgr->GetIntDefault("UnlockRacesClasses.ClassChange.ItemEntry", 0);
-    _classChangeCost.ItemCount = sConfigMgr->GetIntDefault("UnlockRacesClasses.ClassChange.ItemCount", 0);
-    _specChangeCost.ItemEntry = sConfigMgr->GetIntDefault("UnlockRacesClasses.SpecChange.ItemEntry", 0);
-    _specChangeCost.ItemCount = sConfigMgr->GetIntDefault("UnlockRacesClasses.SpecChange.ItemCount", 0);
+    _raceChangeCost.ItemEntry = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.RaceChange.ItemEntry", 0);
+    _raceChangeCost.ItemCount = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.RaceChange.ItemCount", 0);
+    _classChangeCost.ItemEntry = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.ClassChange.ItemEntry", 0);
+    _classChangeCost.ItemCount = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.ClassChange.ItemCount", 0);
+    _specChangeCost.ItemEntry = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.SpecChange.ItemEntry", 0);
+    _specChangeCost.ItemCount = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.SpecChange.ItemCount", 0);
 
-    _specs[SPEC_BLADEMASTER].Spells = sConfigMgr->GetIntArrayDefault("UnlockRacesClasses.Spec.Blademaster.Spells", {});
-    _specs[SPEC_BLADEMASTER].Auras  = sConfigMgr->GetIntArrayDefault("UnlockRacesClasses.Spec.Blademaster.Auras", {});
-    _specs[SPEC_NECROMANCER].Spells = sConfigMgr->GetIntArrayDefault("UnlockRacesClasses.Spec.Necromancer.Spells", {});
-    _specs[SPEC_NECROMANCER].Auras  = sConfigMgr->GetIntArrayDefault("UnlockRacesClasses.Spec.Necromancer.Auras", {});
+    _specs[SPEC_BLADEMASTER].Spells = ParseUIntList(sConfigMgr->GetOption<std::string>("UnlockRacesClasses.Spec.Blademaster.Spells", ""));
+    _specs[SPEC_BLADEMASTER].Auras  = ParseUIntList(sConfigMgr->GetOption<std::string>("UnlockRacesClasses.Spec.Blademaster.Auras", ""));
+    _specs[SPEC_NECROMANCER].Spells = ParseUIntList(sConfigMgr->GetOption<std::string>("UnlockRacesClasses.Spec.Necromancer.Spells", ""));
+    _specs[SPEC_NECROMANCER].Auras  = ParseUIntList(sConfigMgr->GetOption<std::string>("UnlockRacesClasses.Spec.Necromancer.Auras", ""));
 
-    _teleportOnRaceChange = sConfigMgr->GetBoolDefault("UnlockRacesClasses.TeleportOnRaceChange", true);
-    _giveStartItems = sConfigMgr->GetBoolDefault("UnlockRacesClasses.GiveStartItems", true);
-    _cooldownSeconds = sConfigMgr->GetIntDefault("UnlockRacesClasses.ChangeCooldown", 0);
+    _teleportOnRaceChange = sConfigMgr->GetOption<bool>("UnlockRacesClasses.TeleportOnRaceChange", true);
+    _giveStartItems = sConfigMgr->GetOption<bool>("UnlockRacesClasses.GiveStartItems", true);
+    _cooldownSeconds = sConfigMgr->GetOption<uint32>("UnlockRacesClasses.ChangeCooldown", 0);
 
     LOG_INFO("module", "UnlockRacesClasses: loaded (enabled: {}, npc: {}, minLevel: {}, newRaces: {}, newClasses: {}, cooldown: {}s)",
         _enabled, _npcEntry, _minLevel, _newRacesEnabled, _newClassesEnabled, _cooldownSeconds);
@@ -833,34 +870,34 @@ class UnlockRacesClasses_CommandScript : public CommandScript
 public:
     UnlockRacesClasses_CommandScript() : CommandScript("UnlockRacesClasses_CommandScript") { }
 
-    std::vector<ChatCommand> GetCommands() const override
+    ChatCommandTable GetCommands() const override
     {
-        static std::vector<ChatCommand> urcCommandTable =
+        static ChatCommandTable urcCommandTable =
         {
-            { "race",  SEC_ADMINISTRATOR, false, &HandleRaceCommand, "" },
-            { "class", SEC_ADMINISTRATOR, false, &HandleClassCommand, "" },
+            { "race",  HandleRaceCommand,  SEC_ADMINISTRATOR, Console::No },
+            { "class", HandleClassCommand, SEC_ADMINISTRATOR, Console::No },
         };
 
-        static std::vector<ChatCommand> urcuiCommandTable =
+        static ChatCommandTable urcuiCommandTable =
         {
-            { "status", SEC_PLAYER, false, &HandleUiStatusCommand, "" },
-            { "race",   SEC_PLAYER, false, &HandleUiRaceCommand, "" },
-            { "class",  SEC_PLAYER, false, &HandleUiClassCommand, "" },
-            { "spec",   SEC_PLAYER, false, &HandleUiSpecCommand, "" },
+            { "status", HandleUiStatusCommand, SEC_PLAYER, Console::No },
+            { "race",   HandleUiRaceCommand,   SEC_PLAYER, Console::No },
+            { "class",  HandleUiClassCommand,  SEC_PLAYER, Console::No },
+            { "spec",   HandleUiSpecCommand,   SEC_PLAYER, Console::No },
         };
 
-        static std::vector<ChatCommand> commandTable =
+        static ChatCommandTable commandTable =
         {
-            { "urc",  SEC_ADMINISTRATOR, false, nullptr, "", urcCommandTable },
-            { "urcui", SEC_PLAYER,      false, nullptr, "", urcuiCommandTable },
+            { "urc",   urcCommandTable },
+            { "urcui", urcuiCommandTable },
         };
 
         return commandTable;
     }
 
-    static bool HandleRaceCommand(ChatHandler* handler, char const* args)
+    static bool HandleRaceCommand(ChatHandler* handler, Optional<uint32> raceId)
     {
-        if (!*args)
+        if (!raceId)
         {
             handler->SendSysMessage("Использование: .urc race <raceId> (цель: выбранный игрок или вы сами)");
             return false;
@@ -870,26 +907,25 @@ public:
         if (!target)
             target = handler->GetSession()->GetPlayer();
 
-        uint32 raceId = static_cast<uint32>(atoi(args));
-        if (raceId > RACE_PANDAREN_NEUTRAL)
+        if (*raceId > RACE_PANDAREN_NEUTRAL)
         {
             handler->SendSysMessage("Некорректный ID расы.");
             return false;
         }
 
-        if (!sUnlockRacesClasses->ApplyRaceChange(target, static_cast<uint8>(raceId)))
+        if (!sUnlockRacesClasses->ApplyRaceChange(target, static_cast<uint8>(*raceId)))
         {
             handler->SendSysMessage("Не удалось изменить расу (комбинация недоступна).");
             return false;
         }
 
-        handler->PSendSysMessage("Раса {} изменена на {}.", target->GetName(), raceId);
+        handler->PSendSysMessage("Раса {} изменена на {}.", target->GetName(), *raceId);
         return true;
     }
 
-    static bool HandleClassCommand(ChatHandler* handler, char const* args)
+    static bool HandleClassCommand(ChatHandler* handler, Optional<uint32> classId)
     {
-        if (!*args)
+        if (!classId || *classId == 0 || *classId > URC_CLASS_NECROMANCER)
         {
             handler->SendSysMessage("Использование: .urc class <classId> (цель: выбранный игрок или вы сами)");
             return false;
@@ -899,20 +935,13 @@ public:
         if (!target)
             target = handler->GetSession()->GetPlayer();
 
-        uint32 classId = static_cast<uint32>(atoi(args));
-        if (classId == 0 || classId > URC_CLASS_NECROMANCER)
-        {
-            handler->SendSysMessage("Некорректный ID класса.");
-            return false;
-        }
-
-        if (!sUnlockRacesClasses->ApplyClassChange(target, static_cast<uint8>(classId)))
+        if (!sUnlockRacesClasses->ApplyClassChange(target, static_cast<uint8>(*classId)))
         {
             handler->SendSysMessage("Не удалось изменить класс (комбинация недоступна).");
             return false;
         }
 
-        handler->PSendSysMessage("Класс {} изменён на {}.", target->GetName(), classId);
+        handler->PSendSysMessage("Класс {} изменён на {}.", target->GetName(), *classId);
         return true;
     }
 
@@ -922,7 +951,7 @@ public:
     // .urcui class <id>      -> NPC-equivalent class change
     // .urcui spec <id>       -> NPC-equivalent specialization choice
 
-    static bool HandleUiStatusCommand(ChatHandler* handler, char const* /*args*/)
+    static bool HandleUiStatusCommand(ChatHandler* handler)
     {
         Player* player = handler->GetSession()->GetPlayer();
         if (!player)
@@ -936,23 +965,21 @@ public:
         return true;
     }
 
-    static bool HandleUiRaceCommand(ChatHandler* handler, char const* args)
+    static bool HandleUiRaceCommand(ChatHandler* handler, Optional<uint32> raceId)
     {
         Player* player = handler->GetSession()->GetPlayer();
-        if (!player || !*args)
+        if (!player || !raceId)
             return false;
-
-        uint32 raceId = static_cast<uint32>(atoi(args));
 
         if (!UnlockRacesClasses::MeetsLevelRequirement(player) ||
             sUnlockRacesClasses->IsOnCooldown(player) ||
             !UnlockRacesClasses::CheckAndPayCost(player, sUnlockRacesClasses->GetRaceChangeCost(), "смены расы"))
             return true;
 
-        if (sUnlockRacesClasses->ApplyRaceChange(player, static_cast<uint8>(raceId)))
+        if (sUnlockRacesClasses->ApplyRaceChange(player, static_cast<uint8>(*raceId)))
         {
             sUnlockRacesClasses->StartCooldown(player);
-            handler->PSendSysMessage("URC_OK race={}", raceId);
+            handler->PSendSysMessage("URC_OK race={}", *raceId);
         }
         else
             handler->SendSysMessage("URC_FAIL комбинация недоступна");
@@ -960,23 +987,21 @@ public:
         return true;
     }
 
-    static bool HandleUiClassCommand(ChatHandler* handler, char const* args)
+    static bool HandleUiClassCommand(ChatHandler* handler, Optional<uint32> classId)
     {
         Player* player = handler->GetSession()->GetPlayer();
-        if (!player || !*args)
+        if (!player || !classId)
             return false;
-
-        uint32 classId = static_cast<uint32>(atoi(args));
 
         if (!UnlockRacesClasses::MeetsLevelRequirement(player) ||
             sUnlockRacesClasses->IsOnCooldown(player) ||
             !UnlockRacesClasses::CheckAndPayCost(player, sUnlockRacesClasses->GetClassChangeCost(), "смены класса"))
             return true;
 
-        if (sUnlockRacesClasses->ApplyClassChange(player, static_cast<uint8>(classId)))
+        if (sUnlockRacesClasses->ApplyClassChange(player, static_cast<uint8>(*classId)))
         {
             sUnlockRacesClasses->StartCooldown(player);
-            handler->PSendSysMessage("URC_OK class={}", classId);
+            handler->PSendSysMessage("URC_OK class={}", *classId);
         }
         else
             handler->SendSysMessage("URC_FAIL комбинация недоступна");
@@ -984,23 +1009,21 @@ public:
         return true;
     }
 
-    static bool HandleUiSpecCommand(ChatHandler* handler, char const* args)
+    static bool HandleUiSpecCommand(ChatHandler* handler, Optional<uint32> specId)
     {
         Player* player = handler->GetSession()->GetPlayer();
-        if (!player || !*args)
+        if (!player || !specId)
             return false;
-
-        uint32 specId = static_cast<uint32>(atoi(args));
 
         if (!UnlockRacesClasses::MeetsLevelRequirement(player) ||
             sUnlockRacesClasses->IsOnCooldown(player) ||
             !UnlockRacesClasses::CheckAndPayCost(player, sUnlockRacesClasses->GetSpecChangeCost(), "выбора специализации"))
             return true;
 
-        if (sUnlockRacesClasses->ApplySpecialization(player, static_cast<uint8>(specId)))
+        if (sUnlockRacesClasses->ApplySpecialization(player, static_cast<uint8>(*specId)))
         {
             sUnlockRacesClasses->StartCooldown(player);
-            handler->PSendSysMessage("URC_OK spec={}", specId);
+            handler->PSendSysMessage("URC_OK spec={}", *specId);
         }
         else
             handler->SendSysMessage("URC_FAIL неизвестная специализация");
